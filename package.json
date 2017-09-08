@@ -1,0 +1,46 @@
+{
+  "private": true,
+  "name": "gre-js13k-2017",
+  "version": "0.0.0",
+  "description": "",
+  "scripts": {
+    "clean": "rm -rf build/; mkdir -p build target",
+    "compileglsl": "./scripts/compileglslfiles.sh src/shaders build",
+    "copyglsl": "./scripts/compileglslfiles.sh src/shaders build --copy",
+    "concat": "./scripts/concat.sh > build/build.js",
+    "minify": "uglifyjs build/build.js -c -m -o build/build.min.js",
+    "nominify": "cp build/build.js build/build.min.js",
+    "gen":
+      "cp src/target.html target/index.html && cp build/build.min.js target/b.js",
+    "build":
+      "export NODE_ENV=production; npm run clean && npm run compileglsl && npm run concat && npm run minify && npm run gen && npm run zip",
+    "build-nominify":
+      "npm run clean && npm run copyglsl && npm run concat && npm run nominify && npm run gen",
+    "watch":
+      "npm run build-nominify; nodemon --exec 'npm run build-nominify' --watch src -e js,frag,vert",
+    "liveserver": "mkdir -p target; cd target; live-server --no-browser",
+    "zip": "cd target; zip -r ../target.zip .; cd ..; wc -c target.zip",
+    "start": "npm run watch & npm run liveserver"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/gre/js13k-2014.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/gre/js13k-2014/issues"
+  },
+  "homepage": "https://github.com/gre/js13k-2014",
+  "devDependencies": {
+    "browserify": "^14.4.0",
+    "eslint": "^4.6.1",
+    "glslmin": "0.0.0",
+    "live-server": "^1.2.0",
+    "uglify-js": "^3.0.28",
+    "uglifycss": "^0.0.27"
+  },
+  "dependencies": {
+    "nodemon": "^1.12.0"
+  }
+}
