@@ -6,10 +6,14 @@ uniform vec3 origin;
 uniform mat3 rot;
 uniform sampler2D mapT;
 uniform vec3 mapDim;
+uniform vec3 cubeRot;
 
+#define M_PI_HALF 1.5707963
 #define INF 999.0
-#define N_MARCH 60
+#define N_MARCH 100
 #define NORMAL_EPSILON 0.01
+
+vec3 direction;
 
 // Utility
 
@@ -100,7 +104,7 @@ vec2 sdCell (vec3 p, float v) {
   v *= 2.;
   float back = floor(v);
 
-  float pipeW = 0.1;
+  float pipeW = 0.15;
   float sphereR = pipeW;
   float s = sdSphere(p, sphereR);
   float r = 0.3;
@@ -139,10 +143,10 @@ vec2 sdCell (vec3 p, float v) {
 }
 
 vec2 sdMap (vec3 p) {
-  float mapLimit = vmin(mapDim / 2.0 - abs(p - mapDim/2.0 + 0.5));
+  float box = sdBox(p - mapDim/2. + 0.5, mapDim/2. - 0.5);
   vec2 d = vec2(INF, 0.0);
 
-  if (mapLimit >= 0.0) {
+  if (box <= 0.5) {
 
     vec3 id = pMod3(p, vec3(1.0));
     float cell = cellValue(id);
@@ -151,23 +155,42 @@ vec2 sdMap (vec3 p) {
       d = opU(d, sdCell(p, cell));
     }
     else {
-      // there is nothing here. we need to assume there is something in the next cell..
-      // FIXME we need to cap that it "jumps to next cell"... maybe this should be done in the raymarcher, beccause we need the direction
-      d = opU(d, vec2(vmin(0.9 - abs(p)), 0.0)); // FIXME why magic numbers
+      // there is nothing in this cell. so we reach the next neighbor edge to try to avoid joint glitch..
+      // this is like a containing box but that understand the direction so it does not say something in close when ray wont go there..
+      // FIXME there is a better algorithm to figure out that should calc the distance to the next grid collision... just need to put formula on paper and it will be the same kind of vmin thing
+      d = opU(d, vec2(0.01 + vmin(vec3(
+        mix(0.5 - p.x, 0.5 + p.x, step(0.,direction.x)),
+        mix(0.5 - p.y, 0.5 + p.y, step(0.,direction.y)),
+        mix(0.5 - p.z, 0.5 + p.z, step(0.,direction.z))
+      ) / (1.0 + direction)), 0.));
     }
+  }
+  else {
+    d = vec2(box, 0.0);
   }
 
   return d;
 }
 
 vec2 scene(vec3 p) {
-  //vec2 d = vec2(INF, 0.0);
-  return sdMap(p/* + 0.5 - vec3(-mapDim[0] / 2.0, -mapDim[1] / 2.0, -mapDim[2] / 2.0)*/);
-  //return d;
+  vec2 d = vec2(mapDim.z - p.z, 0.0);
+  vec3 rots = cubeRot * M_PI_HALF;
+  float c0 = cos(rots[0]);
+  float s0 = sin(rots[0]);
+  float c1 = cos(rots[1]);
+  float s1 = sin(rots[1]);
+  float c2 = cos(rots[2]);
+  float s2 = sin(rots[2]);
+  p.yz *= mat2(c0, s0, -s0, c0);
+  p.xy *= mat2(c2, s2, -s2, c2);
+  p.xz *= mat2(c1, s1, -s1, c1);
+  p += mapDim / 2.0 - 0.5;
+  d = opU(d, sdMap(p));
+  return d;
 }
 
 vec3 materialColor (float m, vec3 normal) {
-  if (m <= 0.) return vec3(0.0);
+  if (m <= 0.) return vec3(1.0);
   if (m <= 1.) return vec3(1.0, 0.0, 0.0);
   return vec3(1.0);
 }
@@ -197,7 +220,7 @@ vec3 sceneNormal(vec3 p) {
 }
 
 void main() {
-  vec3 direction = normalize(rot * vec3(uv, 2.5));
+  direction = normalize(rot * vec3(uv, 2.5));
   vec2 result = raymarch(origin, direction);
   float material = result.y;
   float dist = result.x;

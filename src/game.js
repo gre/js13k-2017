@@ -89,6 +89,7 @@ function render(state, oldState) {
   }
 
   gl.uniformMatrix3fv(glUniformLocation(gameShader, "rot"), false, state.rot);
+  gl.uniform3fv(glUniformLocation(gameShader, "cubeRot"), state.cubeRot);
   gl.uniform1i(glUniformLocation(gameShader, "mapT"), 0);
   gl.uniform3fv(glUniformLocation(gameShader, "mapDim"), state.mapDim);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
