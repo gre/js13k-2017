@@ -9,6 +9,7 @@ GAME_FRAG
 GLARE_FRAG
 LASER_FRAG
 PERSISTENCE_FRAG
+Float32Array
 */
 
 var gl = c.getContext("webgl") || c.getContext("experimental-webgl"),
@@ -62,16 +63,6 @@ gl.bufferData(
   gl.STATIC_DRAW
 );
 
-var blur1dShader = glCreateShader(STATIC_VERT, BLUR1D_FRAG);
-gl.uniform2f(glUniformLocation(blur1dShader, "dim"), W, H);
-var copyShader = glCreateShader(STATIC_VERT, COPY_FRAG);
-var persistenceShader = glCreateShader(STATIC_VERT, PERSISTENCE_FRAG);
-var glareShader = glCreateShader(STATIC_VERT, GLARE_FRAG);
 var gameShader = glCreateShader(GAME_VERT, GAME_FRAG);
-
-var persistenceFbo = glCreateFBO();
-var glareFbo = glCreateFBO();
-var fbo1 = glCreateFBO();
-var fbo2 = glCreateFBO();
 
 var mapTexture = glCreateTexture();

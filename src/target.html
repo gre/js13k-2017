@@ -7,23 +7,34 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta charset="utf-8">
 <style>
-body {
-background: #000;
-margin: 0;
+html,body {
+background: #fff;
+display: flex;
+align-items: center;
+justify-content: center;
+text-align: center;
+height: 100%;
 padding: 0;
+margin: 0;
+font-size: 20px;
+font-family: Monoid,monospace;
 }
-#d {
-position: absolute;
+h1{
+padding: 0;
+margin: 0;
+color: #06C;
 }
-canvas {
-position: absolute;
-top: 0;
-left: 0;
+footer{
+color: #c60;
 }
 </style>
 </head>
 <body>
+  <div>
+  <h1 id="$t"></h1>
   <canvas id="c"></canvas>
+  <footer id="$f"></footer>
+</div>
 <script src="b.js"></script>
 </body>
 </html>

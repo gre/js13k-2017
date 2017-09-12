@@ -2,15 +2,16 @@ precision highp float;
 
 varying vec2 uv;
 uniform float time;
-uniform vec3 origin;
-uniform mat3 rot;
 uniform sampler2D mapT;
+uniform vec3 key;
+uniform vec3 marble;
 uniform vec3 mapDim;
-uniform vec3 cubeRot;
+uniform mat3 cubeR;
+uniform float hurry,boot,dead,boom;
 
 #define M_PI_HALF 1.5707963
 #define INF 999.0
-#define N_MARCH 100
+#define N_MARCH 60
 #define NORMAL_EPSILON 0.01
 
 vec3 direction;
@@ -85,7 +86,15 @@ float cellValue (vec3 id) {
   return c.r;
 }
 
-vec2 sdCell (vec3 p, float v) {
+vec3 globalDisp;
+
+vec2 sdCell (vec3 p, float v, vec3 id) {
+  v *= 2.;
+  float right = floor(v);
+  v -= right;
+  v *= 2.;
+  float left = floor(v);
+  v -= left;
   v *= 2.;
   float up = floor(v);
   v -= up;
@@ -93,21 +102,19 @@ vec2 sdCell (vec3 p, float v) {
   float down = floor(v);
   v -= down;
   v *= 2.;
-  float left = floor(v);
-  v -= left;
-  v *= 2.;
-  float right = floor(v);
-  v -= right;
-  v *= 2.;
   float front = floor(v);
   v -= front;
   v *= 2.;
   float back = floor(v);
 
-  float pipeW = 0.15;
+  float disform = 0.03 * hurry;
+  float pipeW = 0.18;
   float sphereR = pipeW;
-  float s = sdSphere(p, sphereR);
   float r = 0.3;
+
+  p -= disform * globalDisp;
+
+  float s = sdSphere(p, sphereR);
 
   s = mix(
     s,
@@ -139,26 +146,33 @@ vec2 sdCell (vec3 p, float v) {
     opU(s, sdCappedCylinder(p.yzx - vec3(0.0, -0.25, 0.0), vec2(pipeW, 0.25))),
     back
   );
-  return vec2(s, 1.0);
+  return vec2(s,
+    1.0 + 0.99 * smoothstep(3., 1., distance(p+id, marble)));
 }
 
 vec2 sdMap (vec3 p) {
   float box = sdBox(p - mapDim/2. + 0.5, mapDim/2. - 0.5);
   vec2 d = vec2(INF, 0.0);
 
-  if (box <= 0.5) {
+  float t = time * floor(1. + 5.*hurry);
+  float f = 3.;
+  globalDisp = vec3(
+    cos(f*p.y + t),
+    sin(f*p.z + t),
+    cos(f*p.x + t)
+  );
 
+  if (box <= .5) {
     vec3 id = pMod3(p, vec3(1.0));
     float cell = cellValue(id);
-
     if (cell != 0.) {
-      d = opU(d, sdCell(p, cell));
+      d = opU(d, sdCell(p, cell, id));
     }
     else {
       // there is nothing in this cell. so we reach the next neighbor edge to try to avoid joint glitch..
       // this is like a containing box but that understand the direction so it does not say something in close when ray wont go there..
       // FIXME there is a better algorithm to figure out that should calc the distance to the next grid collision... just need to put formula on paper and it will be the same kind of vmin thing
-      d = opU(d, vec2(0.01 + vmin(vec3(
+      d = opU(d, vec2(0.03 + vmin(vec3(
         mix(0.5 - p.x, 0.5 + p.x, step(0.,direction.x)),
         mix(0.5 - p.y, 0.5 + p.y, step(0.,direction.y)),
         mix(0.5 - p.z, 0.5 + p.z, step(0.,direction.z))
@@ -172,41 +186,65 @@ vec2 sdMap (vec3 p) {
   return d;
 }
 
+vec2 sdExit (vec3 p) {
+  return vec2(sdSphere(p, 0.4), 2.0);
+}
+
+vec2 sdMarble (vec3 p, float radius) {
+  float t = 3. * time;
+  float f = 10.;
+  float a = 0.05;
+  return vec2(sdSphere(p + a * vec3(
+    cos(f*p.x + t),
+    sin(f*p.y + t),
+    cos(f*p.z + t)
+  ), radius), 3.0);
+}
+
 vec2 scene(vec3 p) {
-  vec2 d = vec2(mapDim.z - p.z, 0.0);
-  vec3 rots = cubeRot * M_PI_HALF;
-  float c0 = cos(rots[0]);
-  float s0 = sin(rots[0]);
-  float c1 = cos(rots[1]);
-  float s1 = sin(rots[1]);
-  float c2 = cos(rots[2]);
-  float s2 = sin(rots[2]);
-  p.yz *= mat2(c0, s0, -s0, c0);
-  p.xy *= mat2(c2, s2, -s2, c2);
-  p.xz *= mat2(c1, s1, -s1, c1);
+  p.z -= 2.2 * mapDim.z;
+  vec2 d = vec2(30.0 - p.z, 0.0);
+  p = cubeR * p;
   p += mapDim / 2.0 - 0.5;
   d = opU(d, sdMap(p));
+  d = opU(d, sdExit(p - key));
+  d = opU(d, sdMarble(p - marble, .5));
+  // hack distance to play with glitch :D
+  d.x *= (1. - 2. * boot + 3. * boot * boot);
+  d.x += boom * boom;
   return d;
 }
 
 vec3 materialColor (float m, vec3 normal) {
-  if (m <= 0.) return vec3(1.0);
-  if (m <= 1.) return vec3(1.0, 0.0, 0.0);
-  return vec3(1.0);
+  vec3 c = vec3(0.);
+  c += step(0., m) * step (m, 0.999);
+  m--;
+  c += step(0., m) * step (m, 0.999) * mix(
+    vec3(0.6),
+    vec3(0.2, 0.6, 1.0),
+    m * m * 0.6
+  );
+  m--;
+  c += step(0., m) * step (m, 0.999) * vec3(1.0, 0.6, 0.2);
+  m--;
+  c += step(0., m) * step (m, 0.999) * vec3(0.2, 0.6, 1.0);
+  c = mix(c, (0.6 * c + 0.4) * vec3(1.0, 0.0, 0.0), 0.8 * dead);
+  return c;
 }
 
 float materialSpecularIntensity (float m) {
   return 0.1;
 }
 
-vec2 raymarch(vec3 position, vec3 direction) {
+vec2 raymarch(vec3 direction) {
+  int skipAfter = 12 + int(float(N_MARCH) * (1.-dead) * (1. - hurry * hurry) * (1. + .1 * cos(mix(2.*time, 20.*time, hurry))));
   float total_distance = 0.1;
   vec2 result;
   for (int i = 0; i < N_MARCH; ++i) {
-    vec3 p = position + direction * total_distance;
+    vec3 p = direction * total_distance;
     result = scene(p);
     total_distance += result.x;
-    if (result.x < 0.002) return vec2(total_distance, result.y);
+    if (result.x < 0.002 || i > skipAfter) return vec2(total_distance, result.y);
   }
   return vec2(total_distance, result.y);
 }
@@ -220,11 +258,11 @@ vec3 sceneNormal(vec3 p) {
 }
 
 void main() {
-  direction = normalize(rot * vec3(uv, 2.5));
-  vec2 result = raymarch(origin, direction);
+  direction = normalize(vec3(uv, 2.5));
+  vec2 result = raymarch(direction);
   float material = result.y;
   float dist = result.x;
-  vec3 intersection = origin + direction * dist;
+  vec3 intersection = direction * dist;
   vec3 normal = sceneNormal(intersection);
   vec3 matColor = materialColor(material, normal);
   vec3 ambientColor = vec3(0.1);
@@ -238,7 +276,7 @@ void main() {
   float matSpecularIntensity = materialSpecularIntensity(material);
   vec3 diffuseLit;
   vec3 lightColor = vec3(1.0, 0.9, 0.8);
-  float fog = smoothstep(10.0, 20.0, dist);
+  float fog = smoothstep(10.0, 25.0, dist);
   diffuseLit = mix(matColor * (diffuse * lightColor + ambientColor + specular * lightColor * matSpecularIntensity), fogColor, fog);
   gl_FragColor = vec4(diffuseLit, 1.0);
 }

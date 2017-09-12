@@ -1,4 +1,4 @@
-/* global W H initState */
+/* global W H stateForLevel DEBUG */
 
 // N.B: constants don't live here
 
@@ -7,4 +7,4 @@ var t = 0,
   // Input state : updated by user events, handled & emptied by the update loop
   keys = {},
   tap,
-  gameState = initState();
+  gameState = stateForLevel(0);

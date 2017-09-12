@@ -3,6 +3,7 @@ gl
 glBindShader
 glUniformLocation
 gameShader
+$t
 */
 
 /* eslint-disable no-undef */
@@ -16,16 +17,33 @@ if (DEBUG) {
 
 // Game Render Loop
 
-const getUserEvents = () => {
-  let keyRightDelta =
-    (keys[39] || keys[68]) - (keys[37] || keys[65] || keys[81]);
-  let keyUpDelta = (keys[38] || keys[87] || keys[90]) - (keys[40] || keys[83]);
+function threshold(value, limit) {
+  return Math.abs(value) < limit ? 0 : value;
+}
+
+function getUserEvents() {
+  var keyboardX = (keys[39] || keys[68]) - (keys[37] || keys[65] || keys[81]),
+    keyboardY = (keys[40] || keys[83]) - (keys[38] || keys[87] || keys[90]);
+  var d = keys[16] ? [keyboardX, 0, keyboardY] : [0, keyboardX, keyboardY];
+  var gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+  if (gamepads[0]) {
+    var axes = gamepads[0].axes;
+    var buttons = gamepads[0].buttons;
+    if (axes.length >= 2) {
+      d[1] += threshold(axes[0], 0.2);
+      d[2] += threshold(axes[1], 0.2);
+    }
+    if (axes.length >= 4) {
+      d[0] += threshold(axes[2], 0.2);
+    }
+    if (buttons.length > 7) {
+      d[0] += buttons[7].value - buttons[6].value;
+    }
+  }
   return {
-    keys,
-    keyRightDelta,
-    keyUpDelta
+    d: d
   };
-};
+}
 
 var _lastT,
   _lastCheckSize = -9999;
@@ -37,42 +55,41 @@ function loop(_t) {
 
   t += dt; // accumulate the game time (that is not the same as _t)
 
-  const oldState = gameState;
-  gameState = tickState(oldState, getUserEvents());
+  render(gameState, null);
+
+  var oldState = gameState;
+  gameState = tickState(oldState, getUserEvents(), dt / 1000);
 
   // RENDER game
   render(gameState, oldState);
 }
 
-let mapData;
+var mapData;
 
 function render(state, oldState) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   glBindShader(gameShader);
-  gl.uniform1f(glUniformLocation(gameShader, "time"), t / 1000);
-  gl.uniform3fv(glUniformLocation(gameShader, "origin"), state.origin);
+  var status = state.status;
+  var map = state.map;
 
-  if (state.map !== oldState.map) {
-    const map = state.map;
-    const mapDim = state.mapDim;
-    const length = mapDim[0] * mapDim[1] * mapDim[2];
+  if (!oldState || state.text !== oldState.text) {
+    $t.textContent = state.text;
+  }
+  if (!oldState || state.subtext !== oldState.subtext) {
+    $f.textContent = state.subtext;
+  }
+
+  if (!oldState || map !== oldState.map) {
+    var length = map.dim[0] * map.dim[1] * map.dim[2];
     mapData = new Uint8Array(length);
-    for (let i = 0; i < length; i++) {
-      const pos = indexToPosition(state.mapDim, i);
-      const left = cellConnectsWith(state, pos, [-1, 0, 0]);
-      const right = cellConnectsWith(state, pos, [1, 0, 0]);
-      const up = cellConnectsWith(state, pos, [0, 1, 0]);
-      const down = cellConnectsWith(state, pos, [0, -1, 0]);
-      const front = cellConnectsWith(state, pos, [0, 0, 1]);
-      const back = cellConnectsWith(state, pos, [0, 0, -1]);
+    for (var i = 0; i < length; i++) {
       mapData[i] =
-        (up << 7) |
-        (down << 6) |
-        (left << 5) |
-        (right << 4) |
-        (front << 3) |
-        (back << 2) |
-        0;
+        getCellConnections(state, indexToPosition(map.dim, i)).reduce(function(
+          acc,
+          n
+        ) {
+          return (acc << 1) | n;
+        }, 0) << 2;
     }
     glBindTexture(mapTexture, 0);
     gl.texImage2D(
@@ -86,11 +103,37 @@ function render(state, oldState) {
       gl.UNSIGNED_BYTE,
       mapData
     );
-  }
 
-  gl.uniformMatrix3fv(glUniformLocation(gameShader, "rot"), false, state.rot);
-  gl.uniform3fv(glUniformLocation(gameShader, "cubeRot"), state.cubeRot);
-  gl.uniform1i(glUniformLocation(gameShader, "mapT"), 0);
-  gl.uniform3fv(glUniformLocation(gameShader, "mapDim"), state.mapDim);
-  gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.uniformMatrix3fv(
+      glUniformLocation(gameShader, "cubeR"),
+      false,
+      state.cubeR
+    );
+    gl.uniform3fv(glUniformLocation(gameShader, "key"), map.k);
+    gl.uniform3fv(glUniformLocation(gameShader, "marble"), state.marble);
+    gl.uniform1i(glUniformLocation(gameShader, "mapT"), 0);
+    gl.uniform3fv(glUniformLocation(gameShader, "mapDim"), map.dim);
+    gl.uniform1f(glUniformLocation(gameShader, "time"), t / 1000);
+    var hurry = 0,
+      dead = 0,
+      boot = 0,
+      boom = 0;
+    if (status === 1) {
+      hurry = smoothstep(30, 0, state.gameTime);
+      dead = smoothstep(3, 0, state.gameTime);
+      boot = smoothstep(3, 0, state.statusChangeT);
+    }
+    if (status === 2) {
+      boom = smoothstep(0, 3, state.statusChangeT);
+    }
+    if (status === 3) {
+      hurry = 1;
+      dead = 1;
+    }
+    gl.uniform1f(glUniformLocation(gameShader, "hurry"), hurry);
+    gl.uniform1f(glUniformLocation(gameShader, "dead"), dead);
+    gl.uniform1f(glUniformLocation(gameShader, "boot"), boot);
+    gl.uniform1f(glUniformLocation(gameShader, "boom"), boom);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+  }
 }
