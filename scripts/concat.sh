@@ -1,5 +1,5 @@
 
-cat src/pre.js
+echo "(function(){"
 
 if [ "$NODE_ENV" == "production" ]; then
   cat src/env_prod.js
@@ -27,6 +27,6 @@ cd ..;
 cat src/setup.js
 cat src/input.js
 cat src/logic.js
-cat src/game.js
+cat src/main.js
 
-cat src/post.js
+echo "}())"

@@ -148,6 +148,6 @@ function render(state, oldState) {
     gl.uniform1f(glUniformLocation(gameShader, "dead"), dead);
     gl.uniform1f(glUniformLocation(gameShader, "boot"), boot);
     gl.uniform1f(glUniformLocation(gameShader, "boom"), boom);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 }

@@ -1,14 +1,7 @@
 /* global c MOBILE
-gameScale: true
 glCreateFBO glCreateShader glCreateTexture glUniformLocation
-STATIC_VERT
-BLUR1D_FRAG
-COPY_FRAG
 GAME_VERT
 GAME_FRAG
-GLARE_FRAG
-LASER_FRAG
-PERSISTENCE_FRAG
 Float32Array
 */
 
@@ -50,20 +43,7 @@ var buffer = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
 gl.bufferData(
   gl.ARRAY_BUFFER,
-  new Float32Array([
-    -1.0,
-    -1.0,
-    1.0,
-    -1.0,
-    -1.0,
-    1.0,
-    -1.0,
-    1.0,
-    1.0,
-    -1.0,
-    1.0,
-    1.0
-  ]),
+  new Float32Array([-1, -1, -1, 4, 4, -1]),
   gl.STATIC_DRAW
 );
 

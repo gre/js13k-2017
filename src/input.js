@@ -1,7 +1,4 @@
-/* global
-keys
-MOBILE
-*/
+/* global MOBILE */
 
 var keys = {};
 for (var i = 0; i < 99; ++i) keys[i] = 0;
