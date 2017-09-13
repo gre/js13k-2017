@@ -13,8 +13,12 @@ Float32Array
 */
 
 var gl = c.getContext("webgl") || c.getContext("experimental-webgl"),
-  W = 500,
-  H = 500,
+  size = Math.min(
+    (window.screen && Math.min(screen.width, screen.height)) || 500,
+    500
+  ),
+  W = size,
+  H = size,
   SEED = Math.random();
 
 // DOM setup

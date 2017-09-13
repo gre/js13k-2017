@@ -147,7 +147,7 @@ vec2 sdCell (vec3 p, float v, vec3 id) {
     back
   );
   return vec2(s,
-    1.0 + 0.99 * smoothstep(3., 1., distance(p+id, marble)));
+    0.99 * smoothstep(0.6, 0.3, length((p+id - marble)/mapDim)));
 }
 
 vec2 sdMap (vec3 p) {
@@ -186,19 +186,15 @@ vec2 sdMap (vec3 p) {
   return d;
 }
 
-vec2 sdExit (vec3 p) {
-  return vec2(sdSphere(p, 0.4), 2.0);
-}
-
-vec2 sdMarble (vec3 p, float radius) {
-  float t = 3. * time;
-  float f = 10.;
-  float a = 0.05;
+vec2 sdMarble (vec3 p, float isMarble) {
+  float t = 3. * time + isMarble;
+  float f = 10.+isMarble;
+  float a = 0.03 + .02*isMarble;
   return vec2(sdSphere(p + a * vec3(
     cos(f*p.x + t),
     sin(f*p.y + t),
     cos(f*p.z + t)
-  ), radius), 3.0);
+  ), 0.4), isMarble * 1.2);
 }
 
 vec2 scene(vec3 p) {
@@ -207,33 +203,25 @@ vec2 scene(vec3 p) {
   p = cubeR * p;
   p += mapDim / 2.0 - 0.5;
   d = opU(d, sdMap(p));
-  d = opU(d, sdExit(p - key));
-  d = opU(d, sdMarble(p - marble, .5));
+  d = opU(d, sdMarble(p - marble, 1. + 3.*boom));
+  d = opU(d, sdMarble(p - key, 0. + 4.*boom));
   // hack distance to play with glitch :D
-  d.x *= (1. - 2. * boot + 3. * boot * boot);
-  d.x += boom * boom;
+  d.x *= 1. - 2. * boot + 3. * boot * boot;
+  d.x += boom*boom;
   return d;
 }
 
+// FIXME improve colors, specular, normal...
 vec3 materialColor (float m, vec3 normal) {
-  vec3 c = vec3(0.);
-  c += step(0., m) * step (m, 0.999);
-  m--;
-  c += step(0., m) * step (m, 0.999) * mix(
-    vec3(0.6),
-    vec3(0.2, 0.6, 1.0),
+  return mix(
+    vec3(0.9),
+    vec3(0.3, 0.7, 1.1),
     m * m * 0.6
   );
-  m--;
-  c += step(0., m) * step (m, 0.999) * vec3(1.0, 0.6, 0.2);
-  m--;
-  c += step(0., m) * step (m, 0.999) * vec3(0.2, 0.6, 1.0);
-  c = mix(c, (0.6 * c + 0.4) * vec3(1.0, 0.0, 0.0), 0.8 * dead);
-  return c;
 }
 
 float materialSpecularIntensity (float m) {
-  return 0.1;
+  return 0.2 + 0.4 * step(3.,m)*step(m,3.999);
 }
 
 vec2 raymarch(vec3 direction) {
@@ -267,16 +255,16 @@ void main() {
   vec3 matColor = materialColor(material, normal);
   vec3 ambientColor = vec3(0.1);
   vec3 fogColor = vec3(1.0);
-  vec3 lightDir = normalize(vec3(0.1, 0.2, -1.0));
+  vec3 lightDir = normalize(vec3(0.1, 0.3, -1.0));
   float diffuse = dot(lightDir, normal);
-  diffuse = mix(diffuse, 1.0, 0.5); // half diffuse
+  diffuse = mix(diffuse, 1.0, 0.8);
   vec3 lightReflect = normalize(reflect(lightDir, normal));
   float specular = dot(-direction, lightReflect);
   specular = pow(specular, 4.0);
   float matSpecularIntensity = materialSpecularIntensity(material);
   vec3 diffuseLit;
-  vec3 lightColor = vec3(1.0, 0.9, 0.8);
-  float fog = smoothstep(10.0, 25.0, dist);
+  vec3 lightColor = mix(vec3(1.), vec3(1.,.0,.0), dead);
+  float fog = smoothstep(8.0, 22.0, dist);
   diffuseLit = mix(matColor * (diffuse * lightColor + ambientColor + specular * lightColor * matSpecularIntensity), fogColor, fog);
   gl_FragColor = vec4(diffuseLit, 1.0);
 }

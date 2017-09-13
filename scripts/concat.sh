@@ -10,11 +10,7 @@ fi;
 # libs
 
 cat src/lib/math.js
-cat src/lib/path.js
-cat src/lib/asteroids.font.js
 cat src/lib/webgl.js
-cat src/lib/jsfxr.js
-cat src/lib/audio.js
 
 # shaders
 
@@ -29,11 +25,8 @@ cd ..;
 # game
 #
 cat src/setup.js
-cat src/logic.js
-cat src/state.js
-cat src/sounds.js
 cat src/input.js
-cat src/ui.js
+cat src/logic.js
 cat src/game.js
 
 cat src/post.js

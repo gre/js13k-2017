@@ -4,6 +4,8 @@ glBindShader
 glUniformLocation
 gameShader
 $t
+touchStartPos
+touchMove
 */
 
 /* eslint-disable no-undef */
@@ -35,15 +37,27 @@ function getUserEvents() {
     }
     if (axes.length >= 4) {
       d[0] += threshold(axes[2], 0.2);
+      d[2] += threshold(axes[3], 0.2);
     }
     if (buttons.length > 7) {
       d[0] += buttons[7].value - buttons[6].value;
     }
   }
+  if (touchStartPos && touchMove) {
+    var dx = touchMove[0] - touchStartPos[0];
+    var dy = touchMove[1] - touchStartPos[1];
+    d[1] -= dx / 100;
+    d[2] -= dy / 100;
+  }
   return {
     d: d
   };
 }
+
+var t = 0,
+  dt,
+  // Input state : updated by user events, handled & emptied by the update loop
+  gameState = stateForLevel(0);
 
 var _lastT,
   _lastCheckSize = -9999;
@@ -76,7 +90,7 @@ function render(state, oldState) {
     $t.textContent = state.text;
   }
   if (!oldState || state.subtext !== oldState.subtext) {
-    $f.textContent = state.subtext;
+    $f.textContent = state.subtext || " ";
   }
 
   if (!oldState || map !== oldState.map) {
