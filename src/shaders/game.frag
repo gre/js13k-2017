@@ -1,20 +1,12 @@
 precision highp float;
 
 varying vec2 uv;
-uniform float time;
 uniform sampler2D mapT;
-uniform vec3 key;
-uniform vec3 marble;
-uniform vec3 mapDim;
+uniform float time,hurry,boot,dead,boom;
+uniform vec3 key,marble,mapDim;
 uniform mat3 cubeR;
-uniform float hurry,boot,dead,boom;
 
-#define M_PI_HALF 1.5707963
-#define INF 999.0
-#define N_MARCH 60
-#define NORMAL_EPSILON 0.01
-
-vec3 direction;
+vec3 dir; // shared direction
 
 // Utility
 
@@ -23,25 +15,6 @@ float opU(float d1, float d2) {
 }
 vec2 opU(vec2 d1, vec2 d2) {
   return mix(d1, d2, step(d2.x, d1.x));
-}
-float opUs(float k, float a, float b) {
-  float h = clamp( 0.5+0.5*(b-a)/k, 0.0, 1.0 );
-  return mix( b, a, h ) - k*h*(1.0-h);
-}
-vec2 opUs(float k, vec2 d1, vec2 d2) {
-  float v = opUs(k, d1.x, d2.x);
-  return vec2(v, mix(d1.y, d2.y, step(d2.x, d1.x)));
-}
-float opS(float d1, float d2) {
-  return max(-d1,d2);
-}
-float opI(float d1, float d2) {
-  return max(d1,d2);
-}
-void rot2 (inout vec2 p, float a) {
-  float c = cos(a);
-  float s = sin(a);
-  p = mat2(c, -s, s, c) * p;
 }
 float vmin(vec2 v) {
   return min(v.x, v.y);
@@ -64,26 +37,24 @@ float sdCappedCylinder(vec3 p, vec2 h) {
   vec2 d = abs(vec2(length(p.xz),p.y)) - h;
   return min(max(d.x,d.y),0.0) + length(max(d,0.0));
 }
-float sdBoxWindow(vec3 p, vec3 b) {
-  return max(abs(p.z) - b.z, vmin(b.xy - abs(p.xy)));
-}
 float sdBox(vec3 p, vec3 b) {
   return vmax(abs(p) - b); // cheap version
 }
 float sdSphere (vec3 p, float s) {
   return length(p)-s;
 }
-float sdTorus(vec3 p, vec2 t) {
-  vec2 q = vec2(length(p.xz)-t.x,p.y);
-  return length(q)-t.y;
-}
 
 // game shapes
 
 float cellValue (vec3 id) {
-  float x = id[2] + mapDim[2] * (id[1] + mapDim[1] * id[0]);
-  vec4 c = texture2D(mapT, vec2((x + 0.5) / (mapDim[0]*mapDim[1]*mapDim[2]), 0.5));
-  return c.r;
+  return texture2D(mapT, vec2(
+    (
+      id[2] + mapDim[2] * (id[1] + mapDim[1] * id[0]) // index
+     + 0.5 // safe for windows
+    ) / (
+      mapDim[0]*mapDim[1]*mapDim[2]
+    ), 0.5)
+  ).r;
 }
 
 vec3 globalDisp;
@@ -152,7 +123,7 @@ vec2 sdCell (vec3 p, float v, vec3 id) {
 
 vec2 sdMap (vec3 p) {
   float box = sdBox(p - mapDim/2. + 0.5, mapDim/2. - 0.5);
-  vec2 d = vec2(INF, 0.0);
+  vec2 d = vec2(99., 0.0);
 
   float t = time * floor(1. + 5.*hurry);
   float f = 3.;
@@ -170,13 +141,13 @@ vec2 sdMap (vec3 p) {
     }
     else {
       // there is nothing in this cell. so we reach the next neighbor edge to try to avoid joint glitch..
-      // this is like a containing box but that understand the direction so it does not say something in close when ray wont go there..
+      // this is like a containing box but that understand the dir so it does not say something in close when ray wont go there..
       // FIXME there is a better algorithm to figure out that should calc the distance to the next grid collision... just need to put formula on paper and it will be the same kind of vmin thing
       d = opU(d, vec2(0.03 + vmin(vec3(
-        mix(0.5 - p.x, 0.5 + p.x, step(0.,direction.x)),
-        mix(0.5 - p.y, 0.5 + p.y, step(0.,direction.y)),
-        mix(0.5 - p.z, 0.5 + p.z, step(0.,direction.z))
-      ) / (1.0 + direction)), 0.));
+        mix(0.5 - p.x, 0.5 + p.x, step(0.,dir.x)),
+        mix(0.5 - p.y, 0.5 + p.y, step(0.,dir.y)),
+        mix(0.5 - p.z, 0.5 + p.z, step(0.,dir.z))
+      ) / (1.0 + dir)), 0.));
     }
   }
   else {
@@ -199,7 +170,7 @@ vec2 sdMarble (vec3 p, float isMarble) {
 
 vec2 scene(vec3 p) {
   p.z -= 2.2 * mapDim.z;
-  vec2 d = vec2(30.0 - p.z, 0.0);
+  vec2 d = vec2(30.0 - p.z, 0.0); // a plane in the far back allow to shorter the raymarch iteration
   p = cubeR * p;
   p += mapDim / 2.0 - 0.5;
   d = opU(d, sdMap(p));
@@ -224,12 +195,12 @@ float materialSpecularIntensity (float m) {
   return 0.2 + 0.4 * step(3.,m)*step(m,3.999);
 }
 
-vec2 raymarch(vec3 direction) {
-  int skipAfter = 12 + int(float(N_MARCH) * (1.-dead) * (1. - hurry * hurry) * (1. + .1 * cos(mix(2.*time, 20.*time, hurry))));
+vec2 raymarch(vec3 dir) {
+  int skipAfter = 12 + int(60. * (1.-dead) * (1. - hurry * hurry) * (1. + .1 * cos(mix(2.*time, 20.*time, hurry))));
   float total_distance = 0.1;
   vec2 result;
-  for (int i = 0; i < N_MARCH; ++i) {
-    vec3 p = direction * total_distance;
+  for (int i = 0; i < 60; ++i) {
+    vec3 p = dir * total_distance;
     result = scene(p);
     total_distance += result.x;
     if (result.x < 0.002 || i > skipAfter) return vec2(total_distance, result.y);
@@ -239,32 +210,27 @@ vec2 raymarch(vec3 direction) {
 
 vec3 sceneNormal(vec3 p) {
   return normalize(vec3(
-    scene(p + vec3(NORMAL_EPSILON, 0., 0.)).x - scene(p - vec3(NORMAL_EPSILON, 0., 0.)).x,
-    scene(p + vec3(0., NORMAL_EPSILON, 0.)).x - scene(p - vec3(0., NORMAL_EPSILON, 0.)).x,
-    scene(p + vec3(0.,0.,NORMAL_EPSILON)).x - scene(p - vec3(0.,0.,NORMAL_EPSILON)).x
+    scene(p + vec3(.01, 0., 0.)).x - scene(p - vec3(.01, 0., 0.)).x,
+    scene(p + vec3(0., .01, 0.)).x - scene(p - vec3(0., .01, 0.)).x,
+    scene(p + vec3(0.,0.,.01)).x - scene(p - vec3(0.,0.,.01)).x
   ));
 }
 
 void main() {
-  direction = normalize(vec3(uv, 2.5));
-  vec2 result = raymarch(direction);
+  dir = normalize(vec3(uv, 2.5));
+  vec2 result = raymarch(dir);
   float material = result.y;
   float dist = result.x;
-  vec3 intersection = direction * dist;
+  vec3 intersection = dir * dist;
   vec3 normal = sceneNormal(intersection);
-  vec3 matColor = materialColor(material, normal);
-  vec3 ambientColor = vec3(0.1);
-  vec3 fogColor = vec3(1.0);
   vec3 lightDir = normalize(vec3(0.1, 0.3, -1.0));
-  float diffuse = dot(lightDir, normal);
-  diffuse = mix(diffuse, 1.0, 0.8);
-  vec3 lightReflect = normalize(reflect(lightDir, normal));
-  float specular = dot(-direction, lightReflect);
-  specular = pow(specular, 4.0);
-  float matSpecularIntensity = materialSpecularIntensity(material);
-  vec3 diffuseLit;
-  vec3 lightColor = mix(vec3(1.), vec3(1.,.0,.0), dead);
-  float fog = smoothstep(8.0, 22.0, dist);
-  diffuseLit = mix(matColor * (diffuse * lightColor + ambientColor + specular * lightColor * matSpecularIntensity), fogColor, fog);
-  gl_FragColor = vec4(diffuseLit, 1.0);
+  gl_FragColor = vec4(mix(materialColor(material, normal) * (
+    .1 // ambiant color
+    + mix(vec3(1.), vec3(1.,.0,.0), dead) * ( // light color
+      mix(dot(lightDir, normal), 1., .8) // normal diffuse
+      + pow(dot(-dir, normalize(reflect(lightDir, normal))), 4.) * materialSpecularIntensity(material) // specular diffuse
+    )
+    ), vec3(1.),
+    smoothstep(8.0, 22.0, dist) // fog
+    ), 1.0);
 }

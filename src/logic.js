@@ -1,4 +1,4 @@
-/* global DEBUG glMat3Multiply glMat3Transpose dotProduct mat3FromAngleAndAxis transformMat3 dist mix3 MOBILE */
+/* global DEBUG glMat3Multiply glMat3Transpose dotProduct mat3FromAngleAndAxis transformMat3 dist mix3 MOBILE keys */
 
 function dotProductWithAxes(v) {
   return deltas
@@ -46,7 +46,7 @@ function addVec3(a, b) {
 function cellConnectsWith(map, pos, off) {
   var from = positionToIndex(map.dim, pos);
   var to = positionToIndex(map.dim, addVec3(pos, off));
-  var exists = edgeExists(map.edges, from, to);
+  var exists = edgeExists(map.e, from, to);
   return exists ? 1 : 0;
 }
 
@@ -69,7 +69,9 @@ function deltaInverse(i) {
 }
 
 function genMap(level) {
-  var lvld = Math.round(2 + 2 * Math.log(1 + level));
+  var lvld = Math.round(2 + 2 * Math.log(1 + 0.3 * level));
+  var diff = 1 - Math.exp(-0.05 * level);
+
   var dim = [lvld, lvld, lvld];
   var dimLength = dim[0] * dim[1] * dim[2];
   var edges = [];
@@ -112,46 +114,74 @@ function genMap(level) {
     return randomInt(dimLength);
   }
 
-  function digMaze(p, maxLength) {
-    for (var i = 0; i < maxLength; i++) {
+  function digMaze(p, minLength, maxLength, intersectProbability) {
+    var i;
+    exploredPosIndexes.push(posIndex(p));
+    var newEdges = [];
+    for (i = 0; i < maxLength; i++) {
       var neighbors = allNeighbors(p)
         .map(function(pos) {
           var index = posIndex(pos);
           return {
             pos: pos,
             i: index,
-            explored: exploredPosIndexes.indexOf(index) === -1,
+            explored: exploredPosIndexes.indexOf(index) !== -1,
             random: Math.random()
           };
         })
         .sort(function(a, b) {
-          return 9 * (b.explored - a.explored) + a.random - b.random;
+          return 9 * (a.explored - b.explored) + a.random - b.random;
         });
       var next = neighbors[0];
-      if (!next) return;
-      exploredPosIndexes.push(next.i);
-      addEdge(edges, posIndex(p), next.i);
+      if (next.explored && Math.random() > intersectProbability) break;
+      if (!next.explored) exploredPosIndexes.push(next.i);
+      addEdge(newEdges, posIndex(p), next.i);
       p = next.pos;
     }
+    if (newEdges.length >= minLength) {
+      edges = edges.concat(newEdges);
+    }
+    return i;
   }
 
   // Dig the main gallery
-  digMaze(k, Math.floor(dimLength));
-
-  // TODO now need to work A LOT on level design
-  // better learning curve
+  digMaze(
+    k,
+    0,
+    level === 0
+      ? Math.round(3 + 3 * Math.random())
+      : Math.floor(
+          dimLength *
+            Math.max(
+              0.1,
+              0.8 +
+                0.6 * Math.random() -
+                Math.random() * Math.random() * Math.random() -
+                0.4 * diff
+            )
+        ),
+    1
+  );
 
   var initialMarble = indexToPosition(
     dim,
-    exploredPosIndexes[Math.floor((exploredPosIndexes.length - 1) / 2)]
+    exploredPosIndexes[Math.floor(2 + (exploredPosIndexes.length - 3) / 2)]
   );
 
-  // TODO dig some other maze from another pos?
-  for (var i = 0; i < 4; i++) {
-    //digMaze(randomUnexploredPos(), Math.floor(0.1 * dimLength));
+  var countToDig =
+    level === 0
+      ? 0
+      : Math.floor((0.5 * (Math.random() - 0.5) + diff) * dimLength);
+  for (var i = 0; i < 10 && countToDig > 0; i++) {
+    countToDig -= digMaze(
+      indexToPosition(dim, randomUnexploredPos()),
+      10,
+      10 + Math.random() * countToDig,
+      0.3
+    );
   }
 
-  return { edges: edges, k: k, initialMarble: initialMarble, dim: dim };
+  return { e: edges, k: k, i: initialMarble, dim: dim };
 }
 
 // status:
@@ -168,7 +198,7 @@ function stateForLevel(level) {
     statusChangeT: 0,
     gameTime: 30 + 20 * map.dim[0],
     map: map,
-    marble: map.initialMarble,
+    marble: map.i,
     cubeR: [1, 0, 0, 0, 1, 0, 0, 0, 1]
   };
 }
@@ -181,6 +211,10 @@ function tickState(state, events, dt /* in seconds */) {
 
   if (state.status === 2 && state.statusChangeT > 3) {
     state = stateForLevel(level + 1);
+  }
+  if (DEBUG && keys[32] && (!level || state.statusChangeT > 3)) {
+    state = stateForLevel(level + 1);
+    state.statusChangeT = 2.5;
   }
 
   var text, subtext;
@@ -196,7 +230,7 @@ function tickState(state, events, dt /* in seconds */) {
     state.gameTime -= dt;
     if (state.gameTime < 30) subtext = Math.ceil(state.gameTime);
     state.cubeR = state.cubeR.slice(0);
-    var rotSpeed = 3;
+    var rotSpeed = 4;
     events.d.forEach(function(delta, i) {
       if (!delta) return;
       var axis = [0, 0, 0];
