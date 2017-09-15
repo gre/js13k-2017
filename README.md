@@ -23,7 +23,7 @@ That game is not finished as I wish it was *(I had only a ~2 days window this ti
 I still like this current state even if everything is a bit unpolished (some level tends to be harder even at beginning). I'm a bit surprised and didn't expect a 3D maze was kinda challenging.
 
 **Rotating** the cube instead of moving in a static world makes it more challenging because you quickly become **LOST**. You kinda need to memorize the 3D path as you rotate to go faster.
-Another challenge in the game is, when there are pipe intersection and you want to make a turn, you need to have the correct rotation so you fall in the turn. This makes it very challenging when there are lot of intersection.
+Another challenge in the game is, when there are pipe intersection and you want to make a turn, you need to have the correct rotation so you fall in the turn and not slip down. This makes it very challenging when there are lot of intersection.
 
 ## Tech Notes
 
