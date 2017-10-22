@@ -93,6 +93,10 @@ function render(state, oldState) {
     $f.textContent = state.subtext || " ";
   }
 
+  if (oldState && state.level > oldState.level) {
+    texta_win();
+  }
+
   if (!oldState || map !== oldState.map) {
     var length = map.dim[0] * map.dim[1] * map.dim[2];
     mapData = new Uint8Array(length);

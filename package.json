@@ -11,7 +11,7 @@
     "minify": "uglifyjs build/build.js -c -m -o build/build.min.js",
     "nominify": "cp build/build.js build/build.min.js",
     "gen":
-      "cp src/target.html target/index.html && cp build/build.min.js target/b.js",
+      "cp src/target.html target/game.html && cp build/build.min.js target/b.js && cp doc/icon.png target/ && cp doc/screen.jpg target/",
     "build":
       "export NODE_ENV=production; npm run clean && npm run compileglsl && npm run concat && npm run minify && npm run gen && npm run zip",
     "build-nominify":
